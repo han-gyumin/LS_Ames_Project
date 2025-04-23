@@ -1,0 +1,20 @@
+---
+title: "TITLE"
+format: dashboard
+---
+
+# 데이터 개요 & 변수에 따른 분포
+
+
+## Row
+```{python}
+#| title: Best GrLivArea in map
+from IPython.display import IFrame
+
+IFrame(src='./data/house_gla.html', width='100%', height='600px')
+```
+
+# OverCond
+```{python}
+IFrame(src='data/house_gla_all.html', width='100%', height='600px')
+```

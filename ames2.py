@@ -82,7 +82,7 @@ df['InteriorBusiness_Score'] = (
 )
 
 #############################################
-dff = pd.read_csv('./data/house_1/top200.csv')
+dff = pd.read_csv('./data/house/top200.csv')
 
 dff.columns
 
@@ -128,3 +128,4 @@ for _, row in top_1_percent.iterrows():
         fill_opacity=0.8,
         popup=popup
     ).add_to(m)
+m

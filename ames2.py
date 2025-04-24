@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # 1. 데이터 불러오기
-df = pd.read_csv('./data/house_1/ames.csv')
+df = pd.read_csv('./data/house/houseprice-with-lonlat.csv')
 
 #위도 경도 결측치 제거
 df = df.dropna(subset=['Latitude', 'Longitude']).reset_index(drop=True)

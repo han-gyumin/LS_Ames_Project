@@ -151,11 +151,6 @@ fig.update_traces(marker=dict(size=10, opacity=0.8))
 fig.show(config={"scrollZoom": True})
 
 
-
-
-
-
-
 # GarageCond 시각화
 # 지역별 최빈 차고지 상태 점수
 # 1. 데이터 불러오기
@@ -516,9 +511,11 @@ from sklearn.preprocessing import StandardScaler
 import folium
 
 # 1. 데이터 불러오기
+# 1. 데이터 불러오기 및 결측치 제거
 df = pd.read_csv("./data/house/houseprice-with-lonlat.csv")
 df = df.dropna(subset=['Latitude', 'Longitude'])
-# 2. 사용할 변수들 (언더바 제거)
+
+# 2. 사용할 변수들
 cols = ['BsmtCond', 'ExterCond', 'GarageCond', 'YearRemodAdd']
 
 # 3. 문자열 점수 매핑
@@ -530,12 +527,12 @@ qual_mapping = {
     'Very_Good': 5, 'Very_Poor': 1
 }
 
-df_score = df[cols].copy()
-for col in cols:
-    if df_score[col].dtype == object:
-        df_score[col] = df_score[col].map(qual_mapping)
+# 4. 문자열 점수 매핑을 df에 직접 적용
+for col in ['BsmtCond', 'ExterCond', 'GarageCond']:
+    if df[col].dtype == object:
+        df[col] = df[col].map(qual_mapping)
 
-# 4. 리모델링 연도 점수화
+# 5. 리모델링 연도 점수화
 def remod_to_score(year):
     if year < 1960: return 6
     elif year < 1970: return 5
@@ -544,26 +541,27 @@ def remod_to_score(year):
     elif year < 2000: return 2
     else: return 1
 
-df_score['RemodScore'] = df['YearRemodAdd'].apply(remod_to_score)
-df_score.drop(columns='YearRemodAdd', inplace=True)
+df['RemodScore'] = df['YearRemodAdd'].apply(remod_to_score)
 
-# 5. 상태 점수 뒤집기 (나쁠수록 점수 높게)
+# 6. 상태 점수 뒤집기 (좋음=1 → 나쁨=5)
 for col in ['BsmtCond', 'ExterCond', 'GarageCond']:
-    df_score[col] = 5 - df_score[col]
+    df[col] = 5 - df[col]
 
-# 6. 결측치 처리
-df_score.fillna(0, inplace=True)
-df_score
-# 7. 초기 점수 산정
-initial_score = (
-    df_score['RemodScore'] * 0.2 + df_score['GarageCond'] * 0.2 + df_score['ExterCond'] * 0.3 + df_score['BsmtCond'] * 0.3
+# 7. 결측치 처리
+df[['BsmtCond', 'ExterCond', 'GarageCond', 'RemodScore']] = df[[
+    'BsmtCond', 'ExterCond', 'GarageCond', 'RemodScore']].fillna(0)
+
+# 8. 초기 유지보수 필요 점수 계산
+df['MaintenanceNeedScore'] = (
+    df['RemodScore'] * 0.2 +
+    df['GarageCond'] * 0.2 +
+    df['ExterCond'] * 0.3 +
+    df['BsmtCond'] * 0.3
 )
-df['MaintenanceNeedScore'] = initial_score
 
-# 10. 지도 시각화 (Top 10)
-top10 = df[['Latitude', 'Longitude', 'MaintenanceNeedScore']].sort_values(
-    by='MaintenanceNeedScore', ascending=False).head(200)
-
+# 9. 상위 200개 추출
+top200 = df.sort_values(by='MaintenanceNeedScore', ascending=False).head(200)
+top200.to_csv('./data/house/top200.csv', index=True)
 top25 = df[df['MaintenanceNeedScore'] >= df['MaintenanceNeedScore'].quantile(0.75)][
     ['Latitude', 'Longitude', 'MaintenanceNeedScore']
 ].sort_values(by='MaintenanceNeedScore', ascending=False)

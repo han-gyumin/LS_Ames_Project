@@ -74,11 +74,11 @@ mode_score = (
 
 # 5. 색상 매핑 (점수 높을수록 더 눈에 띄는 색상)
 bsmt_color_map = {
-    1: 'blue',       # Excellent
-    2: 'green',      # Good
-    3: 'gold',       # Typical
-    4: 'orangered',  # Fair
-    5: 'darkred'     # Poor
+    1: 'blue',        # Excellent
+    2: 'green',       # Good
+    3: 'gold',        # Typical
+    4: 'orangered',   # Fair
+    5: 'darkred'      # Poor
 }
 
 # 6. 시각화
@@ -105,49 +105,54 @@ df = pd.read_csv('./data/house/houseprice-with-lonlat.csv')
 
 # 2. 지하실 상태 점수 매핑 (나쁠수록 높은 점수)
 bsmt_cond_mapping = {
-    'Ex': 1,  # Excellent
+    'Ex': 1,
     'Gd': 2,
     'TA': 3,
     'Fa': 4,
-    'Po': 5   # Poor
+    'Po': 5
 }
-df['ExterCondScore'] = df['ExterCond'].map(bsmt_cond_mapping)
 
-# 3. 위경도 구간화 (소수 셋째 자리까지 반올림 → 밀집도 그룹화)
+df['BsmtCondScore'] = df['BsmtCond'].map(bsmt_cond_mapping).dropna()
+
+# 3. 위경도 구간화
 df['Lat_bin'] = (df['Latitude'] * 1000).round() / 1000
 df['Lon_bin'] = (df['Longitude'] * 1000).round() / 1000
 
-# 4. 지역별 최빈 지하실 상태 점수 계산
+# 4. 지역별 최빈값 계산
 mode_score = (
-    df.dropna(subset=['ExterCondScore'])
-    .groupby(['Lat_bin', 'Lon_bin'])['ExterCondScore']
+    df.dropna(subset=['BsmtCondScore'])
+    .groupby(['Lat_bin', 'Lon_bin'])['BsmtCondScore']
     .agg(lambda x: x.mode().iloc[0])
     .reset_index()
 )
 
-# 5. 색상 매핑 (점수 높을수록 더 눈에 띄는 색상)
-Exter_color_map = {
-    1: 'blue',       # Excellent
-    2: 'green',      # Good
-    3: 'gold',       # Typical
-    4: 'orangered',  # Fair
-    5: 'darkred'     # Poor
+# 5. 점수를 문자열로 변환 (이산형 색상 적용 위해)
+mode_score['BsmtCondScore'] = mode_score['BsmtCondScore'].astype(str)
+
+# 6. 이산형 색상 매핑
+bsmt_color_map = {
+    '1': 'blue',        # Excellent
+    '2': 'green',       # Good
+    '3': 'gold',        # Typical
+    '4': 'orangered',   # Fair
+    '5': 'darkred'      # Poor
 }
 
-# 6. 시각화
+# 7. 시각화
 fig = px.scatter_mapbox(
     mode_score,
     lat='Lat_bin',
     lon='Lon_bin',
-    color='ExterCondScore',
-    category_orders={"ExterCondScore": sorted(Exter_color_map.keys())},
-    color_discrete_map={str(k): v for k, v in Exter_color_map.items()},
+    color='BsmtCondScore',
+    category_orders={"BsmtCondScore": ['1', '2', '3', '4', '5']},
+    color_discrete_map=bsmt_color_map,
     zoom=12,
     mapbox_style='carto-positron',
-    title= "외장재 상태 점수 (ExterCondScore)"
+    title="지하실 상태 점수 (BsmtCondScore)"
 )
 
 fig.update_traces(marker=dict(size=10, opacity=0.8))
+fig.update_layout(mapbox_center={"lat": 42.03, "lon": -93.62})
 fig.show(config={"scrollZoom": True})
 
 
@@ -179,25 +184,30 @@ mode_score = (
 )
 
 # 5. 색상 매핑 (점수 높을수록 더 눈에 띄는 색상)
-Garage_color_map = {
-    1: 'blue',       # Excellent
-    2: 'green',      # Good
-    3: 'gold',       # Typical
-    4: 'orangered',  # Fair
-    5: 'darkred'     # Poor
+# 점수 컬럼을 문자열로 변환
+mode_score['GarageCondScore'] = mode_score['GarageCondScore'].astype(str)
+
+# 색상 매핑 (의미 있는 색상 직접 지정)
+Garagecond_color_map = {
+    '1': 'blue',     # 매우 나쁨
+    '2': 'orangered',   # 나쁨
+    '3': 'gold',        # 보통
+    '4': 'orangered',     # 좋음
+    '5': 'darkred'     # 매우 좋음
 }
 
-# 6. 시각화
+# 시각화
+
 fig = px.scatter_mapbox(
     mode_score,
     lat='Lat_bin',
     lon='Lon_bin',
     color='GarageCondScore',
-    category_orders={"GarageCondScore": sorted(Garage_color_map.keys())},
-    color_discrete_map={str(k): v for k, v in Garage_color_map.items()},
+    category_orders={"GarageCondScore": ['1', '2', '3', '4', '5']},
+    color_discrete_map=Garagecond_color_map,
     zoom=12,
     mapbox_style='carto-positron',
-    title= "차고지 상태 점수 (GarageCondScore)"
+    title="차고지 품질 점수 (GarageCondScore)"
 )
 
 fig.update_traces(marker=dict(size=10, opacity=0.8))
@@ -230,25 +240,28 @@ fig.update_traces(marker=dict(size=6, opacity=0.7))
 fig.show(config={"scrollZoom": True})
 
 
+
+
+
+
 # 지역별 지하실 품질 점수
-# 1. 데이터 불러오기
 df = pd.read_csv('./data/house/houseprice-with-lonlat.csv')
 
-# 2. 지하실 품질 점수 매핑 (나쁠수록 높은 점수)
+# 2. 지하실 품질 점수 매핑 (좋을수록 낮은 점수)
 BsmtQual_mapping = {
-    'Ex': 1,  # Excellent
-    'Gd': 2,
+    'Po': 1,
+    'Fa': 2,
     'TA': 3,
-    'Fa': 4,
-    'Po': 5   # Poor
+    'Gd': 4,
+    'Ex': 5
 }
-df['BsmtQualScore'] = df['BsmtQual'].map(bsmt_cond_mapping)
+df['BsmtQualScore'] = df['BsmtQual'].map(BsmtQual_mapping)
 
-# 3. 위경도 구간화 (소수 셋째 자리까지 반올림 → 밀집도 그룹화)
+# 3. 위경도 구간화 (소수 셋째 자리 반올림 → 밀집도 그룹화)
 df['Lat_bin'] = (df['Latitude'] * 1000).round() / 1000
 df['Lon_bin'] = (df['Longitude'] * 1000).round() / 1000
 
-# 4. 지역별 지하실 품질 점수 계산
+# 4. 지역별 최빈값 계산
 mode_score = (
     df.dropna(subset=['BsmtQualScore'])
     .groupby(['Lat_bin', 'Lon_bin'])['BsmtQualScore']
@@ -256,30 +269,35 @@ mode_score = (
     .reset_index()
 )
 
-# 5. 색상 매핑 (점수 높을수록 더 눈에 띄는 색상)
-bsmt_color_map = {
-    1: 'blue',       # Excellent
-    2: 'green',      # Good
-    3: 'gold',       # Typical
-    4: 'orangered',  # Fair
-    5: 'darkred'     # Poor
+# 5. 문자열로 변환
+mode_score['BsmtQualScore'] = mode_score['BsmtQualScore'].astype(str)
+
+# 6. 색상 매핑 (좋음=파랑, 나쁨=빨강)
+BsmtQual_color_map = {
+    '1': 'darkred',     # 매우 나쁨
+    '2': 'orangered',   # 나쁨
+    '3': 'gold',        # 보통
+    '4': 'green',       # 좋음
+    '5': 'blue'         # 매우 좋음
 }
 
-# 6. 시각화
+# 7. 시각화
 fig = px.scatter_mapbox(
     mode_score,
     lat='Lat_bin',
     lon='Lon_bin',
     color='BsmtQualScore',
-    category_orders={"BsmtQualScore": sorted(bsmt_color_map.keys())},
-    color_discrete_map={str(k): v for k, v in bsmt_color_map.items()},
+    category_orders={"BsmtQualScore": ['1', '2', '3', '4', '5']},
+    color_discrete_map=BsmtQual_color_map,
     zoom=12,
     mapbox_style='carto-positron',
-    title= "지하실 품질 점수 (BsmtQualScore)"
+    title="지하실 품질 점수 (BsmtQualScore)"
 )
 
 fig.update_traces(marker=dict(size=10, opacity=0.8))
 fig.show(config={"scrollZoom": True})
+
+
 
 
 
@@ -287,21 +305,21 @@ fig.show(config={"scrollZoom": True})
 # 1. 데이터 불러오기
 df = pd.read_csv('./data/house/houseprice-with-lonlat.csv')
 
-# 2. 외장재 품질 점수 매핑 (나쁠수록 높은 점수)
+# 2. 외장재 품질 점수 매핑 (좋을수록 낮은 점수)
 ExterQual_mapping = {
-    'Ex': 1,  # Excellent
-    'Gd': 2,
+    'Po': 1,  # Excellent
+    'Fa': 2,
     'TA': 3,
-    'Fa': 4,
-    'Po': 5   # Poor
+    'Gd': 4,
+    'Ex': 5   # Poor
 }
 df['ExterQualScore'] = df['ExterQual'].map(ExterQual_mapping)
 
-# 3. 위경도 구간화 (소수 셋째 자리까지 반올림 → 밀집도 그룹화)
+# 3. 위경도 구간화 (소수 셋째 자리 반올림 → 밀집도 그룹화)
 df['Lat_bin'] = (df['Latitude'] * 1000).round() / 1000
 df['Lon_bin'] = (df['Longitude'] * 1000).round() / 1000
 
-# 4. 지역별 외장재 품질 점수 계산
+# 4. 지역별 최빈값 계산
 mode_score = (
     df.dropna(subset=['ExterQualScore'])
     .groupby(['Lat_bin', 'Lon_bin'])['ExterQualScore']
@@ -309,30 +327,36 @@ mode_score = (
     .reset_index()
 )
 
-# 5. 색상 매핑 (점수 높을수록 더 눈에 띄는 색상)
-Exter_color_map = {
-    1: 'blue',       # Excellent
-    2: 'green',      # Good
-    3: 'gold',       # Typical
-    4: 'orangered',  # Fair
-    5: 'darkred'     # Poor
+# 5. 문자열로 변환
+mode_score['ExterQualScore'] = mode_score['ExterQualScore'].astype(str)
+
+# 6. 색상 매핑 (좋음=파랑, 나쁨=빨강)
+ExterQual_color_map = {
+    '1': 'darkred',       # 매우 좋음
+    '2': 'orangered',      # 좋음
+    '3': 'gold',       # 보통
+    '4': 'green',  # 나쁨
+    '5': 'blue'     # 매우 나쁨
 }
 
-# 6. 시각화
+# 7. 시각화
 fig = px.scatter_mapbox(
     mode_score,
     lat='Lat_bin',
     lon='Lon_bin',
     color='ExterQualScore',
-    category_orders={"ExterQualScore": sorted(bsmt_color_map.keys())},
-    color_discrete_map={str(k): v for k, v in bsmt_color_map.items()},
+    category_orders={"ExterQualScore": ['1', '2', '3', '4', '5']},
+    color_discrete_map=ExterQual_color_map,
     zoom=12,
     mapbox_style='carto-positron',
-    title= "외장재 품질 점수 (ExterQualScore)"
+    title="외장재 품질 점수 (ExterQualScore)"
 )
 
 fig.update_traces(marker=dict(size=10, opacity=0.8))
 fig.show(config={"scrollZoom": True})
+
+
+
 
 
 
@@ -350,6 +374,7 @@ HeatingQC_mapping = {
     'Po': 5   # Poor
 }
 df['HeatingQCScore'] = df['HeatingQC'].map(HeatingQC_mapping)
+
 # 3. 위경도 구간화 (소수 셋째 자리까지 반올림 → 밀집도 그룹화)
 df['Lat_bin'] = (df['Latitude'] * 1000).round() / 1000
 df['Lon_bin'] = (df['Longitude'] * 1000).round() / 1000
@@ -373,8 +398,8 @@ HeatingQC_color_map = {
     '1': 'darkred',     # 매우 나쁨
     '2': 'orangered',   # 나쁨
     '3': 'gold',        # 보통
-    '4': 'skyblue',     # 좋음
-    '5': 'darkblue'     # 매우 좋음
+    '4': 'green',     # 좋음
+    '5': 'blue'     # 매우 좋음
 }
 
 # 시각화
@@ -384,7 +409,7 @@ fig = px.scatter_mapbox(
     lat='Lat_bin',
     lon='Lon_bin',
     color='HeatingQCScore',
-    category_orders={"HeatingQCScore": ['1', '2', '3', '4', '5']},
+    category_orders={"HeatingQCScore": ['1', '2', '3', '4', '5','6']},
     color_discrete_map=HeatingQC_color_map,
     zoom=12,
     mapbox_style='carto-positron',
@@ -392,7 +417,6 @@ fig = px.scatter_mapbox(
 )
 
 fig.update_traces(marker=dict(size=10, opacity=0.8))
-fig.update_layout(dragmode='zoom')
 fig.show(config={"scrollZoom": True})
 
 
@@ -504,7 +528,7 @@ fig.show(config={"scrollZoom": True})
 
 
 
-# 라쏘회귀를 통한 condition 점수 산출
+
 import pandas as pd
 from sklearn.linear_model import LassoCV
 from sklearn.preprocessing import StandardScaler
@@ -571,11 +595,11 @@ top10 = df[df['MaintenanceNeedScore'] >= df['MaintenanceNeedScore'].quantile(0.9
 top10
 top10.to_csv('./data/house/top10.csv', index=True)
 top25
-center_lat = top10['Latitude'].mean()
-center_lon = top10['Longitude'].mean()
+center_lat = top200['Latitude'].mean()
+center_lon = top200['Longitude'].mean()
 m = folium.Map(location=[center_lat, center_lon], zoom_start=13)
 
-for _, row in top10.iterrows():
+for _, row in top200.iterrows():
     folium.CircleMarker(
         location=[row['Latitude'], row['Longitude']],
         radius=2,
@@ -625,9 +649,17 @@ qual_mapping = {
 vars_to_map = [v for v in cond_qual_vars if v != 'OverallCond']
 
 # 2. 매핑 적용
+# 매핑 적용 (조건/품질 나눠서 처리)
 for var in vars_to_map:
     df_high[var] = df_high[var].map(qual_mapping)
     df_low[var] = df_low[var].map(qual_mapping)
+
+# 점수 반전: Cond 관련 변수만 5 - x
+cond_vars = ['BsmtCond', 'ExterCond', 'GarageCond']
+for var in cond_vars:
+    if var in vars_to_map:
+        df_high[var] = 5 - df_high[var]
+        df_low[var] = 5 - df_low[var]
 
 # 3. 결측치 평균 대체
 df_high[vars_to_map] = df_high[vars_to_map].fillna(df_high[vars_to_map].mean())
@@ -697,6 +729,9 @@ coef_df = pd.DataFrame({
     '고가 계수': coef_high,
     '저가 계수': coef_low
 })
+qual_vars = ['KitchenQual', 'FireplaceQu', 'BsmtQual', 'ExterQual', 'GarageQual', 'HeatingQC']
+cond_vars = ['BsmtCond', 'ExterCond', 'GarageCond', 'OverallCond']
+ordered_vars = qual_vars + cond_vars
+coef_df = coef_df.loc[ordered_vars]
 
-# 출력
 coef_df

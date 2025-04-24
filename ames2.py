@@ -82,15 +82,11 @@ df['InteriorBusiness_Score'] = (
 )
 
 #############################################
-dff = pd.read_csv('./data/house/top200.csv')
-
-dff.columns
-
-
 import folium
 import pandas as pd
 from branca.colormap import linear
 
+dff = pd.read_csv('./data/house/top200.csv')
 # 1. 상위 % 기준점 계산
 threshold = dff['InteriorBusiness_Score'].quantile(0.75)
 
@@ -129,3 +125,4 @@ for _, row in top_1_percent.iterrows():
         popup=popup
     ).add_to(m)
 m
+m.save("./data/house/final.html")

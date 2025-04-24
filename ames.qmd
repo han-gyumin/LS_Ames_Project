@@ -1,20 +1,876 @@
 ---
-title: "TITLE"
-format: dashboard
+title : 'Safe Home'
+author: "4조"
+format: 
+    dashboard:
+        scrolling: true 
+        css: style.css
+editor: 
+  markdown: 
+    wrap: 72
 ---
 
-# 데이터 개요 & 변수에 따른 분포
+# 의뢰 내용
+
+
+## Row 
+
+
+
+
+::: {.columns}
+
+::: {.column width="50%"}
+<img src="./data/houseprice/company_logo.png" style="display: block; margin-left: 250px; height: 400px; width: auto;" alt="Company Logo">
+
+:::
+
+::: {.column width="50%"}
+<img src="./data/houseprice/ames.jpg" style="display: block; margin-left: 150px; height: 400px; width: auto;" alt="Ames">
+
+
+:::
+
+::: 
+
+## Row
+
+<p style="font-size: 35px; ">
+**🛠️유지보수 사업자 입장에서 프로모션 전략 기획**
+<br>
+**🎯 수요와 수익성 기반 세부 타겟 설정**
+<br>
+**🎯 타켓 특성 맞춤형 프로모션 전략 제시**
+<br><br>
+**🔍배경**<br>
+Ames 지역 유지보수 개업을 앞둔 돈돈씨
+<br>돈되는 사업을 위해 타업체와 차별화되는 분석적 접근법으로 고객 유치에 나서려고 한다.
+<br>데이터 분석 역량을 바탕으로 수요와 수익성 모두 노리려는 그의 목적은 이뤄질 수 있을 것인가..
+</p>
+
+## Row
+
+::: {.card title="OverallCond 지표 활용의 한계" style="width: 50%; margin: 30px auto 0 auto; font-size: 18px;"}
+
+<p style="font-size: 22px; font-weight: bold; text-align: center;">
+📌정량적 종합 유지보수 사업성 판단 지표를 만들어서 활용하자!
+</p>
+
+
+```{python}
+#| fig-width: 5
+#| fig-height: 4
+
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+
+# 1. 데이터 불러오기
+df = pd.read_csv("./data/house/houseprice-with-lonlat.csv")
+
+# 2. 변수 리스트 정의
+cond_cols = ["BsmtCond", "ExterCond", "GarageCond"]
+
+# 3. 등급 매핑
+cond_map = {"Ex": 1, "Gd": 2, "TA": 3, "Fa": 4, "Po": 5}
+
+# 4. Cond 관련 변수: 수치 매핑 후 dropna()
+for col in cond_cols:
+    df[col + "_num"] = df[col].map(cond_map)
+
+cond_corr_cols = [col + "_num" for col in cond_cols] + ["OverallCond"]
+cond_corr_df = df[cond_corr_cols].dropna()
+cond_corr = cond_corr_df.corr()
+
+# 5. 시각화: OverallCond 히트맵
+plt.figure(figsize=(4,3))
+sns.heatmap(cond_corr, annot=True, cmap="coolwarm", fmt=".2f", square=True)
+plt.title("Correlation: OverallCond & Related Variables")
+plt.tight_layout()
+plt.show()
+```
+
+
+
+```{python}
+import pandas as pd
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from mlxtend.feature_selection import SequentialFeatureSelector as SFS
+import statsmodels.api as sm
+import pandas as pd
+
+from sklearn.linear_model import LassoCV
+from sklearn.preprocessing import StandardScaler
+import pandas as pd
+import folium
+from folium.plugins import MarkerCluster
+import pandas as pd
+import folium
+from folium.plugins import MarkerCluster
+import plotly.express as px
+```
+
+:::
+
+## Row
+
+
+
+```{python}
+# 지역별 최빈 지하실 상태 점수
+# 1. 데이터 불러오기
+df = pd.read_csv('./data/house/houseprice-with-lonlat.csv')
+
+# 2. 지하실 상태 점수 매핑 (나쁠수록 높은 점수)
+bsmt_cond_mapping = {
+    'Ex': 1,  # Excellent
+    'Gd': 2,
+    'TA': 3,
+    'Fa': 4,
+    'Po': 5   # Poor
+}
+df['BsmtCondScore'] = df['BsmtCond'].map(bsmt_cond_mapping)
+
+# 3. 위경도 구간화 (소수 셋째 자리까지 반올림 → 밀집도 그룹화)
+df['Lat_bin'] = (df['Latitude'] * 1000).round() / 1000
+df['Lon_bin'] = (df['Longitude'] * 1000).round() / 1000
+
+# 4. 지역별 최빈 지하실 상태 점수 계산
+mode_score = (
+    df.dropna(subset=['BsmtCondScore'])
+    .groupby(['Lat_bin', 'Lon_bin'])['BsmtCondScore']
+    .agg(lambda x: x.mode().iloc[0])
+    .reset_index()
+)
+mode_score['BsmtCondScore'] = mode_score['BsmtCondScore'].astype(str)
+# 5. 색상 매핑 (점수 높을수록 더 눈에 띄는 색상)
+bsmt_color_map = {
+    1: 'blue',       # Excellent
+    2: 'green',      # Good
+    3: 'gold',       # Typical
+    4: 'orangered',  # Fair
+    5: 'darkred'     # Poor
+}
+
+# 6. 시각화
+fig = px.scatter_mapbox(
+    mode_score,
+    lat='Lat_bin',
+    lon='Lon_bin',
+    color='BsmtCondScore',
+    category_orders={"BsmtCondScore": sorted(bsmt_color_map.keys())},
+    color_discrete_map={str(k): v for k, v in bsmt_color_map.items()},
+    zoom=12,
+    mapbox_style='carto-positron',
+    title= "지하실 상태 점수 (BsmtCondScore)"
+)
+
+# 제목 가운데 정렬
+fig = fig.update_layout(
+    title={
+        'text': "지하실 상태 점수 (BsmtCondScore)",
+        'x': 0.5  # 기준점 가운데
+    },
+    margin=dict(t=40, b=10)
+)
+
+fig = fig.update_traces(marker=dict(size=10, opacity=0.8))
+fig.show(config={"scrollZoom": True})
+
+
+
+```
+
+
+
+```{python}
+# ExterCond 시각화
+# 지역별 최빈 지하실 상태 점수
+# 1. 데이터 불러오기
+df = pd.read_csv('./data/house/houseprice-with-lonlat.csv')
+
+# 2. 지하실 상태 점수 매핑 (나쁠수록 높은 점수)
+bsmt_cond_mapping = {
+    'Ex': 1,  # Excellent
+    'Gd': 2,
+    'TA': 3,
+    'Fa': 4,
+    'Po': 5   # Poor
+}
+df['ExterCondScore'] = df['ExterCond'].map(bsmt_cond_mapping)
+
+# 3. 위경도 구간화 (소수 셋째 자리까지 반올림 → 밀집도 그룹화)
+df['Lat_bin'] = (df['Latitude'] * 1000).round() / 1000
+df['Lon_bin'] = (df['Longitude'] * 1000).round() / 1000
+
+# 4. 지역별 최빈 지하실 상태 점수 계산
+mode_score = (
+    df.dropna(subset=['ExterCondScore'])
+    .groupby(['Lat_bin', 'Lon_bin'])['ExterCondScore']
+    .agg(lambda x: x.mode().iloc[0])
+    .reset_index()
+)
+mode_score['ExterCondScore'] = mode_score['ExterCondScore'].astype(str)
+# 5. 색상 매핑 (점수 높을수록 더 눈에 띄는 색상)
+Exter_color_map = {
+    1: 'blue',       # Excellent
+    2: 'green',      # Good
+    3: 'gold',       # Typical
+    4: 'orangered',  # Fair
+    5: 'darkred'     # Poor
+}
+
+# 6. 시각화
+fig = px.scatter_mapbox(
+    mode_score,
+    lat='Lat_bin',
+    lon='Lon_bin',
+    color='ExterCondScore',
+    category_orders={"ExterCondScore": sorted(Exter_color_map.keys())},
+    color_discrete_map={str(k): v for k, v in Exter_color_map.items()},
+    zoom=12,
+    mapbox_style='carto-positron',
+    title= "외장재 상태 점수 (ExterCondScore)"
+)
+
+fig = fig.update_traces(marker=dict(size=10, opacity=0.8))
+
+
+# 제목 가운데 정렬
+fig = fig.update_layout(
+    title={
+        'text': "외장재 상태 점수 (ExterCondScore)",
+        'x': 0.5,             # 가운데 정렬
+        'xanchor': 'center'   # 기준점 가운데
+    }
+)
+
+fig.show(config={"scrollZoom": True})
+
+
+```
+
+
+
+## Row 
+
+::: {.card title="차고지 상태 점수" style="width: 50%; margin: 30px auto 0 auto; font-size: 18px;"}
+
+```{python}
+# GarageCond 시각화
+# 지역별 최빈 차고지 상태 점수
+# 1. 데이터 불러오기
+df = pd.read_csv('./data/house/houseprice-with-lonlat.csv')
+
+# 2. 차고지 상태 점수 매핑 (나쁠수록 높은 점수)
+Garage_cond_mapping = {
+    'Ex': 1,  # Excellent
+    'Gd': 2,
+    'TA': 3,
+    'Fa': 4,
+    'Po': 5   # Poor
+}
+df['GarageCondScore'] = df['GarageCond'].map(bsmt_cond_mapping)
+
+# 3. 위경도 구간화 (소수 셋째 자리까지 반올림 → 밀집도 그룹화)
+df['Lat_bin'] = (df['Latitude'] * 1000).round() / 1000
+df['Lon_bin'] = (df['Longitude'] * 1000).round() / 1000
+
+# 4. 지역별 최빈 차고지 상태 점수 계산
+mode_score = (
+    df.dropna(subset=['GarageCondScore'])
+    .groupby(['Lat_bin', 'Lon_bin'])['GarageCondScore']
+    .agg(lambda x: x.mode().iloc[0])
+    .reset_index()
+)
+mode_score['GarageCondScore'] = mode_score['GarageCondScore'].astype(str)
+# 5. 색상 매핑 (점수 높을수록 더 눈에 띄는 색상)
+Garage_color_map = {
+    1: 'blue',       # Excellent
+    2: 'green',      # Good
+    3: 'gold',       # Typical
+    4: 'orangered',  # Fair
+    5: 'darkred'     # Poor
+}
+
+# 6. 시각화
+fig = px.scatter_mapbox(
+    mode_score,
+    lat='Lat_bin',
+    lon='Lon_bin',
+    color='GarageCondScore',
+    category_orders={"GarageCondScore": sorted(Garage_color_map.keys())},
+    color_discrete_map={str(k): v for k, v in Garage_color_map.items()},
+    zoom=12,
+    mapbox_style='carto-positron',
+    title= "차고지 상태 점수 (GarageCondScore)"
+)
+
+fig = fig.update_traces(marker=dict(size=10, opacity=0.8))
+
+# 제목 가운데 정렬
+fig = fig.update_layout(
+    title={
+        'text': "차고지 상태 점수 (GarageCondScore)",
+        'x': 0.5,             # 가운데 정렬
+        'xanchor': 'center'   # 기준점 가운데
+    }
+)
+
+fig.show(config={"scrollZoom": True})
+```
+
+:::
+
+::: {.card title="리모델링 연도 분포" style="width: 50%; margin: 30px auto 0 auto; font-size: 18px;"}
+
+```{python}
+# Year_Remod_Add 시각화
+# 1. 데이터 불러오기
+df = pd.read_csv("./data/house/houseprice-with-lonlat.csv")
+
+# 2. 10년 단위로 변환
+df['RemodDecade'] = (df['YearRemodAdd'] // 10) * 10
+
+# 3. 결측 제거
+df = df[['Latitude', 'Longitude', 'RemodDecade']].dropna()
+
+# 4. Plotly 시각화
+fig = px.scatter_mapbox(
+    df,
+    lat='Latitude',
+    lon='Longitude',
+    color='RemodDecade',
+    color_continuous_scale='Plasma',  # 또는 Turbo, Viridis 등
+    zoom=12,
+    mapbox_style='carto-positron',
+    title="전체 리모델링 연도 (10년 단위) 분포"
+)
+
+fig = fig.update_traces(marker=dict(size=6, opacity=0.7))
+# 제목 가운데 정렬
+fig = fig.update_layout(
+    title={
+        'text': "전체 리모델링 연도 (10년 단위) 분포",
+        'x': 0.5,             # 가운데 정렬
+        'xanchor': 'center'   # 기준점 가운데
+    }
+)
+fig.show(config={"scrollZoom": True})
+
+
+
+```
+
+
+:::
+
+## Row
+
+<p style="font-size: 22px; font-weight: bold; text-align: center;">
+🔜 분산된 4개 변수를 종합한 Condition 지표 등장 예정 !!
+</p>
+
+## Row 
+
+## Qual 주요 변수별 지도 분포
+
+::: {.card title="지하실 품질 점수" style="width: 50%; margin: 30px auto 0 auto; font-size: 18px;"}
+
+```{python}
+
+# 지역별 지하실 품질 점수
+# 1. 데이터 불러오기
+df = pd.read_csv('./data/house/houseprice-with-lonlat.csv')
+
+# 2. 지하실 품질 점수 매핑 (나쁠수록 높은 점수)
+BsmtQual_mapping = {
+    'Po': 1,  # Excellent
+    'Ta': 2,
+    'TA': 3,
+    'Gd': 4,
+    'Ex': 5   # Poor
+}
+df['BsmtQualScore'] = df['BsmtQual'].map(bsmt_cond_mapping)
+
+# 3. 위경도 구간화 (소수 셋째 자리까지 반올림 → 밀집도 그룹화)
+df['Lat_bin'] = (df['Latitude'] * 1000).round() / 1000
+df['Lon_bin'] = (df['Longitude'] * 1000).round() / 1000
+
+# 4. 지역별 지하실 품질 점수 계산
+mode_score = (
+    df.dropna(subset=['BsmtQualScore'])
+    .groupby(['Lat_bin', 'Lon_bin'])['BsmtQualScore']
+    .agg(lambda x: x.mode().iloc[0])
+    .reset_index()
+)
+mode_score['BsmtQualScore'] = mode_score['BsmtQualScore'].astype(str)
+# 5. 색상 매핑 (점수 높을수록 더 눈에 띄는 색상)
+bsmt_color_map = {
+    1: 'darkred',       # Excellent
+    2: 'orangered',      # Good
+    3: 'gold',       # Typical
+    4: 'green',  # Fair
+    5: 'blue'     # Poor
+}
+
+# 6. 시각화
+fig = px.scatter_mapbox(
+    mode_score,
+    lat='Lat_bin',
+    lon='Lon_bin',
+    color='BsmtQualScore',
+    category_orders={"BsmtQualScore": sorted(bsmt_color_map.keys())},
+    color_discrete_map={str(k): v for k, v in bsmt_color_map.items()},
+    zoom=12,
+    mapbox_style='carto-positron',
+    title= "지하실 품질 점수 (BsmtQualScore)"
+)
+
+fig = fig.update_traces(marker=dict(size=10, opacity=0.8))
+# 제목 가운데 정렬
+fig = fig.update_layout(
+    title={
+        'text': "지하실 품질 점수 (BsmtQualScore)",
+        'x': 0.5,             # 가운데 정렬
+        'xanchor': 'center'   # 기준점 가운데
+    }
+)
+
+fig.show(config={"scrollZoom": True})
+
+
+
+```
+
+:::
+
+
+::: {.card title="외장재 품질 점수" style="width: 50%; margin: 30px auto 0 auto; font-size: 18px;"}
+
+
+```{python}
+# 지역별 외장재 품질 점수
+# 1. 데이터 불러오기
+df = pd.read_csv('./data/house/houseprice-with-lonlat.csv')
+
+# 2. 외장재 품질 점수 매핑 (나쁠수록 높은 점수)
+ExterQual_mapping = {
+    'Po': 1,  # Excellent
+    'Fa': 2,
+    'TA': 3,
+    'Gd': 4,
+    'Ex': 5   # Poor
+}
+df['ExterQualScore'] = df['ExterQual'].map(ExterQual_mapping)
+
+# 3. 위경도 구간화 (소수 셋째 자리까지 반올림 → 밀집도 그룹화)
+df['Lat_bin'] = (df['Latitude'] * 1000).round() / 1000
+df['Lon_bin'] = (df['Longitude'] * 1000).round() / 1000
+
+# 4. 지역별 외장재 품질 점수 계산
+mode_score = (
+    df.dropna(subset=['ExterQualScore'])
+    .groupby(['Lat_bin', 'Lon_bin'])['ExterQualScore']
+    .agg(lambda x: x.mode().iloc[0])
+    .reset_index()
+)
+mode_score['ExterQualScore'] = mode_score['ExterQualScore'].astype(str)
+
+# 5. 색상 매핑 (점수 높을수록 더 눈에 띄는 색상)
+Exter_color_map = {
+    1: 'darkred',       # Excellent
+    2: 'orangered',      # Good
+    3: 'gold',       # Typical
+    4: 'green',  # Fair
+    5: 'blue'     # Poor
+}
+
+# 6. 시각화
+fig = px.scatter_mapbox(
+    mode_score,
+    lat='Lat_bin',
+    lon='Lon_bin',
+    color='ExterQualScore',
+    category_orders={"ExterQualScore": sorted(bsmt_color_map.keys())},
+    color_discrete_map={str(k): v for k, v in bsmt_color_map.items()},
+    zoom=12,
+    mapbox_style='carto-positron',
+    title= "외장재 품질 점수 (ExterQualScore)"
+)
+
+fig = fig.update_traces(marker=dict(size=10, opacity=0.8))
+# 제목 가운데 정렬
+fig = fig.update_layout(
+    title={
+        'text': "외장재 품질 점수 (ExterQualScore)",
+        'x': 0.5,             # 가운데 정렬
+        'xanchor': 'center'   # 기준점 가운데
+    }
+)
+
+
+fig.show(config={"scrollZoom": True})
+
+
+```
+
+
+:::
+
+## Row
+
+::: {.card title="난방 품질 점수" style="width: 50%; margin: 30px auto 0 auto; font-size: 18px;"}
+
+
+```{python}
+# 지역별 난방 품질 점수
+# 1. 데이터 불러오기
+df = pd.read_csv('./data/house/houseprice-with-lonlat.csv')
+
+# 2. 난방 품질 점수 매핑 (나쁠수록 높은 점수)
+HeatingQC_mapping = {
+    'Po': 1,  # Excellent
+    'Fa': 2,
+    'TA': 3,
+    'Gd': 4,
+    'Ex': 5   # Poor
+}
+df['HeatingQCScore'] = df['HeatingQC'].map(HeatingQC_mapping)
+# 3. 위경도 구간화 (소수 셋째 자리까지 반올림 → 밀집도 그룹화)
+df['Lat_bin'] = (df['Latitude'] * 1000).round() / 1000
+df['Lon_bin'] = (df['Longitude'] * 1000).round() / 1000
+
+# 4. 지역별 외장재 품질 점수 계산
+mode_score = (
+    df.dropna(subset=['HeatingQCScore'])
+    .groupby(['Lat_bin', 'Lon_bin'])['HeatingQCScore']
+    .agg(lambda x: x.mode().iloc[0])
+    .reset_index()
+)
+
+
+
+# 6. 시각화
+# 점수 컬럼을 문자열로 변환
+mode_score['HeatingQCScore'] = mode_score['HeatingQCScore'].astype(str)
+
+# 색상 매핑 (의미 있는 색상 직접 지정)
+HeatingQC_color_map = {
+    '1': 'darkred',     # 매우 나쁨
+    '2': 'orangered',   # 나쁨
+    '3': 'gold',        # 보통
+    '4': 'green',     # 좋음
+    '5': 'darkblue'     # 매우 좋음
+}
+
+# 시각화
+
+fig = px.scatter_mapbox(
+    mode_score,
+    lat='Lat_bin',
+    lon='Lon_bin',
+    color='HeatingQCScore',
+    category_orders={"HeatingQCScore": ['1', '2', '3', '4', '5']},
+    color_discrete_map=HeatingQC_color_map,
+    zoom=12,
+    mapbox_style='carto-positron',
+    title="난방 품질 점수 (HeatingQCScore)"
+)
+
+fig = fig.update_traces(marker=dict(size=10, opacity=0.8))
+fig = fig.update_layout(
+    title={
+        'text': "난방 품질 점수 (HeatingQCScore)",
+        'x': 0.5,             # 가운데 정렬
+        'xanchor': 'center'   # 기준점 가운데
+    }
+)
+fig.show(config={"scrollZoom": True})
+
+```
+
+:::
+
+::: {.card title="지상 생활공간 점수" style="width: 50%; margin: 30px auto 0 auto; font-size: 18px;"}
+
+
+```{python}
+# 지상 생활공간 점수
+# 1. 데이터 불러오기
+df = pd.read_csv('./data/house/houseprice-with-lonlat.csv')
+# 2. 지상 생활공간 점수 매핑 (나쁠수록 높은 점수)
+df["GrLivArea_Score"] = pd.qcut(df["GrLivArea"], q=4, labels=[1, 2, 3, 4]).astype(int)
+
+# 3. 위경도 구간화 (소수 셋째 자리까지 반올림 → 밀집도 그룹화)
+df['Lat_bin'] = (df['Latitude'] * 1000).round() / 1000
+df['Lon_bin'] = (df['Longitude'] * 1000).round() / 1000
+
+# 4. 지상 생활공간 점수 계산
+mode_score = (
+    df.dropna(subset=['GrLivArea_Score'])
+    .groupby(['Lat_bin', 'Lon_bin'])['GrLivArea_Score']
+    .agg(lambda x: x.mode().iloc[0])
+    .reset_index()
+)
+mode_score['GrLivArea_Score'] = mode_score['GrLivArea_Score'].astype(str)
+# 5. 색상 매핑 (점수 높을수록 더 눈에 띄는 색상)
+GrLivArea_color_map = {
+    1: 'darkred',     # 매우 좁음
+    2: 'orangered',   # 좁음
+    3: 'gold',        # 보통
+    4: 'green',     # 넓음
+    5: 'darkblue'    # 매우 넓음
+}
+
+# 6. 시각화
+fig = px.scatter_mapbox(
+    mode_score,
+    lat='Lat_bin',
+    lon='Lon_bin',
+    color='GrLivArea_Score',
+    category_orders={"GrLivArea_Score": sorted(GrLivArea_color_map.keys())},
+    color_discrete_map={str(k): v for k, v in GrLivArea_color_map.items()},
+    zoom=12,
+    mapbox_style='carto-positron',
+    title= "지상 생활 공간 점수 (GrLivArea_Score)"
+)
+
+fig = fig.update_traces(marker=dict(size=10, opacity=0.8))
+fig = fig.update_layout(
+    title={
+        'text': "지상 생활 공간 점수 (GrLivArea_Score)",
+        'x': 0.5,             # 가운데 정렬
+        'xanchor': 'center'   # 기준점 가운데
+    }
+)
+fig.show(config={"scrollZoom": True})
+
+
+```
+
+
+:::
+
+## Row
+
+<p style="font-size: 22px; font-weight: bold; text-align: center;">
+💬Condition **VS** Quality, 무엇이 다를까?
+</p>
+
+## Row 
+
+# 수요
+
+$$
+Maintenace Score = 0.3BsmtCond + 0.3ExterCond+ 0.2GarageCond + 0.2YearRemodAdd
+$$
+
+## Row
+
+<p style="font-size: 22px; font-weight: bold; text-align: center;">
+-   가정: 상태가 안좋거나 리모델링 경과 연도가 오래될 수록 유지보수 수요가 높을 것이다.
+</p>
+
+## Row
+
+::: {.card title="Maintencance Score 변수 전처리"}
+
++--------------+---------------+----------------+---------------------------------------------+
+| 변수         | 의미          | Type           | 전처리 기준                                 |
++:============:+:=============:+:==============:+:===========================================:+
+| BsmtCond     | 지하실 상태   | 범주형(Ex\~Po) | `Ex`=1 \~ `Po`=5로 역순 점수화, 결측치 제거 |
++--------------+---------------+----------------+---------------------------------------------+
+| ExterCond    | 외벽 상태     | 범주형(Ex\~Po) | `Ex`=1 \~ `Po`=5로 역순 점수화              |
++--------------+---------------+----------------+---------------------------------------------+
+| GarageCond   | 차고 상태     | 범주형(Ex\~Po) | `Ex`=1 \~ `Po`=5로 역순 점수화, 결측치 제거 |
++--------------+---------------+----------------+---------------------------------------------+
+| YearRemodAdd | 리모델링 연도 | 숫자형(YYYY)   | 10년 단위 과거 역순 점수화                  |
++--------------+---------------+----------------+---------------------------------------------+
+
+-   Maintenance Score 가중치 산정법
+
++--------------+----------------------------------+------------+------------+
+| 변수         | 의미                             | 중요도     | 가중치     |
++:============:+:================================:+:==========:+:==========:+
+| BsmtCond     | 누수ㆍ곰팡이 등 위험 노출        | ★★★        | 0.3        |
++--------------+----------------------------------+------------+------------+
+| ExterCond    | 외부 누수ㆍ균열ㆍ단열과 직결     | ★★★        | 0.3        |
++--------------+----------------------------------+------------+------------+
+| GarageCond   | 위와 동일 위험 존재하나 비생활권 | ★★         | 0.2        |
++--------------+----------------------------------+------------+------------+
+| YearRemodAdd | 시설/자재 노후화 정도            | ★★         | 0.2        |
++--------------+----------------------------------+------------+------------+
+:::
+
+## Row
+
+::: {.card title="Maintenace Score 상위 10% 지역 시각화" style="width: 50%; margin: 0 auto; font-size: 18px;"}
+
+```{python}
+from IPython.display import IFrame
+
+IFrame(src='./data/house/top10.html', width='100%', height='600px')
+
+
+```
+
+:::
+
+# 수익성
+
+$$
+Margin Score = 0.4QualAvg + 0.3GrlivArea+ 0.3Saleprice
+$$
+
+## Row
+
+<p style="font-size: 22px; font-weight: bold; text-align: center;">
+-   가정1: 양질의 시설/자재이고 면적이 클수록 유지보수 단가가 높을 것이다.
+
+-   가정2: 주택가격이 높을 수록 지불 용의가 클 것이다.
+</p>
+
+## Row
+
+
+::: {.card title="Margin Score 변수 전처리"}
++-------------+---------------+------------------+-------------------------------------------+
+| 변수        | 의미          | Type             | 전처리 기준                               |
++:===========:+:=============:+:================:+:=========================================:+
+| BsmtQual    | 지하실 품질   | 범주형(Ex\~Po)   | `Ex`=5 \~ `Po`=1로 점수화, 결측치 0점     |
++-------------+---------------+------------------+-------------------------------------------+
+| ExterQual   | 외벽 품질     | 범주형(Ex\~Po)   | `Ex`=5 \~ `Po`=1로 점수화, 결측치 0점     |
++-------------+---------------+------------------+-------------------------------------------+
+| GarageQual  | 차고 품질     | 범주형(Ex\~Po)   | `Ex`=5 \~ `Po`=1로 점수화, 결측치 0점     |
++-------------+---------------+------------------+-------------------------------------------+
+| KitchenQual | 주방 품질     | 범주형(Ex\~Po)   | `Ex`=5 \~ `Po`=1로 점수화, 결측치 0점     |
++-------------+---------------+------------------+-------------------------------------------+
+| FireplaceQu | 벽난로 품질\` | 범주형(Ex\~Po)   | `Ex`=5 \~ `Po`=1로 점수화, 결측치 0점     |
++-------------+---------------+------------------+-------------------------------------------+
+| HeatingQC   | 난방 품질     | 범주형(Ex\~Po)   | `Ex`=5 \~ `Po`=1로 점수화, 결측치 0점     |
++-------------+---------------+------------------+-------------------------------------------+
+| GrlivArea   | 지상생활면적  | 숫자형(제곱미터) | 4분위수 분할, 상위 구간부터 4\~1점 점수화 |
++-------------+---------------+------------------+-------------------------------------------+
+| Saleprice   | 집가격        | 숫자형(달러)     | 4분위수 분할, 상위 구간부터 4\~1점 점수화 |
++-------------+---------------+------------------+-------------------------------------------+
+
+-   Margin Score 가중치 산정법
+
++-----------+-------------------------------------------+-----------+-----------+
+| 변수      | 의미                                      | 중요도    | 가중치    |
++:=========:+:=========================================:+:=========:+:=========:+
+| AvgQual   | Quality 관련 변수 평균값으로              | ★★★★      | 0.4       |
+|           |                                           |           |           |
+|           | 마감재/설비 품질 높을 수록 단가 상승      |           |           |
++-----------+-------------------------------------------+-----------+-----------+
+| GrlivArea | 면적 \* 평당 단가 = 수익                  | ★★★       | 0.3       |
++-----------+-------------------------------------------+-----------+-----------+
+| Saleprice | 고가일수록 재정 여유와 리모델링 의향 존재 | ★★★       | 0.3       |
++-----------+-------------------------------------------+-----------+-----------+
+
+:::
+
+## Row
+
+::: {.card title="Margine Score 상위 50개 시각화" style="width: 50%; margin: 0 auto; font-size: 18px;"}
+
+```{python}
+from IPython.display import IFrame
+
+IFrame(src='./data/house/final.html', width='100%', height='600px')
+
+
+```
+
+:::
+
+## Row
+
+<p style="font-size: 22px; font-weight: bold; text-align: center;">
+📌최종 타겟 결정: 수요와 수익성을 반영한 상위 50세대 선정
+</p>
+
+## Row
+
+# 결론
+
+<p style="font-size: 28px; font-weight: bold; text-align: center;">
+**📈타겟 특성 학습 결과에 따른 마케팅 전략 기획**
+
+-   분석 대상: [**① 고가 주택(상위 25%)**]{.underline} **vs ② [저가 주택(하위 25%)]{.underline}**
+
+-   분석 목적: 고가 주택과 저가 주택의 가격에 Condition/Quality가 미치는 영향력 분석
+
+-   분석 모델: ElasticNet 회귀
+</p>
+
+## Row
+
+$$
+Y : Sale Price
+$$
+
+## Row
+
+$$
+X : Variables  - Condition, Quality 
+$$
+
+## Row
+
+::: {.card title="🧠학습 결과 회귀 계수"}
++-----------+--------------+----------------------------+----------------------------+
+| 구분      | 변수         | 고가 주택                  | 저가 주택                  |
++:=========:+:============:+:==========================:+:==========================:+
+| Quality   | KithchenQual | [**15182.51**]{.underline} | 1740.66                    |
++-----------+--------------+----------------------------+----------------------------+
+| Quality   | FireplaceQu  | [**8792.61**]{.underline}  | 427.00                     |
++-----------+--------------+----------------------------+----------------------------+
+| Quality   | BsmtQual     | [**22680.81**]{.underline} | 2721.31                    |
++-----------+--------------+----------------------------+----------------------------+
+| Quality   | ExterQual    | [**13663.82**]{.underline} | 1260.12                    |
++-----------+--------------+----------------------------+----------------------------+
+| Quality   | GarageQual   | [**8108.78**]{.underline}  | 2104.78                    |
++-----------+--------------+----------------------------+----------------------------+
+| Quality   | HeatingQC    | [**3362.56**]{.underline}  | 1451.55                    |
++-----------+--------------+----------------------------+----------------------------+
+| Condition | BsmtCond     | 1585.07                    | [**-682.69**]{.underline}  |
++-----------+--------------+----------------------------+----------------------------+
+| Condition | ExterCond    | -371.11                    | [**-734.09**]{.underline}  |
++-----------+--------------+----------------------------+----------------------------+
+| Condition | GarageCond   | 2122.78                    | [**-2149.66**]{.underline} |
++-----------+--------------+----------------------------+----------------------------+
+❗해석 유의 : Qual 높을수록 품질 좋음 의미 / Cond 높을수록 상태 나쁨 의미
+:::
 
 
 ## Row
-```{python}
-#| title: Best GrLivArea in map
-from IPython.display import IFrame
 
-IFrame(src='./data/house_gla.html', width='100%', height='600px')
-```
+<p style="font-size: 22px; font-weight: bold; text-align: center;">
+✅고가 주택 : Quality 중심 변수가 가격 형성에 큰 영향
 
-# OverCond
-```{python}
-IFrame(src='data/house_gla_all.html', width='100%', height='600px')
-```
+✅저가 주택 : Condition 중심 변수가 가격 형성에 큰 영향
+
+</p>
+
+## Row
+
+::: {.card title="💡**인사이트 적용**"}
++-----------+--------------------+--------------------------------------------------------+
+| 타겟      | 전략               | 실행방안                                               |
++:=========:+:==================:+:======================================================:+
+| 고가 주택 | 프리미엄 품질 개선 | ㆍ프리미엄 자재, 마감 품질 키워드로 브로슈어 우편 배포 |
+|           |                    |                                                        |
+|           | → 주택 가치 UP     | ㆍ타겟 주택 밀집 지역 배너 설치                        |
++-----------+--------------------+--------------------------------------------------------+
+| 저가 주택 | 주거환경 상태 개선 | ㆍ누수, 단열 방지 등 키워드로 브로슈어 우편 배포       |
+|           |                    |                                                        |
+|           | → 주택 가치 UP     | ㆍ타겟 주택 밀집 지역 배너 설치                        |
++-----------+--------------------+--------------------------------------------------------+
+:::
+
+## Row
+

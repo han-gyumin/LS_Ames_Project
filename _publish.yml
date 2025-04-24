@@ -1,0 +1,4 @@
+- source: ames.qmd
+  quarto-pub:
+    - id: 75374dc6-764a-4219-bd95-e5f3855cf16b
+      url: https://han-gyumin.quarto.pub/ames
